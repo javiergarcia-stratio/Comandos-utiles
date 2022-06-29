@@ -365,6 +365,3 @@ curl 'https://admin.balantia-stratio.com/service/balantia-dev-postgres.balantia-
   --compressed \
   --insecure
 
-  gabril
-  veiPheij7a
-  
