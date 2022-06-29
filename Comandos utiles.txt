@@ -1,0 +1,370 @@
+------------------------  COMANDOS A USAR -----------------------------------
+
+#############################################################################
+## COMPROBACION DE PUERTO/IP
+#############################################################################
+- Ver si hay conectividad con la ip con ese puerto (-v = lenguaje, -w3= 3 seg para timeout)
+     nc 10.1.32.118 4443 -v -z -w3
+
+- Ver si el puerto 4443 está abierto
+     netstat -putan | grep 4443
+
+#############################################################################
+## Generar 1 contraseña de 16 digitos (números y letras)
+#############################################################################
+pwgen -Bcn 16 1
+
+#############################################################################
+##  Borrar una alarma falsa de prometheus 
+#############################################################################
+ssh master-1
+source /opt/stratio/eos-env
+etcdctl ls /prometheus/config/scrape_configs
+etcdctl rm /prometheus/config/scrape_configs/pushgateway
+
+#############################################################################
+## Crear un tunel a un entorno
+#############################################################################
+ssh -i uni_pro.pem centos@34.243.46.69 -L 10636:172.25.18.24:636 -fN
+ssh -i uni_pre.pem -L 1636:172.25.18.58:636 centos@34.248.164.122 -fN
+
+
+- Tunel ldap ayto_bilbao (SAASGT)
+     sudo ssh -L 636:10.0.12.227:636 -i ayto_bilbao.pem cloud@90.84.168.236 -fN
+
+- Túnel ldap Saas_devel
+     sudo ssh -i .ssh/EntornosIndustria/saas_devel.pem -L 636:localhost:636 cloud@10.1.31.226 -fN
+
+#############################################################################
+## GIT
+#############################################################################
+git pull
+git push 
+git status .
+git checkout -- .
+git add .
+git commit -m "Monitorizacion Aeronautica-dev"
+snapshotgit reset --hard c261308
+git clone git@github.com:javiergarcia-stratio/support-utilsk.git
+
+#############################################################################
+## DOCKER
+#############################################################################
+docker ps 
+docker images
+docker load -i archivo.tar
+docker save -o /home/javiergarcia/Descargas/external-pr001.tar b2b
+docker cp id_contenedor:/tmp/archivo.yml /tmp/
+docker exec -it paas-bootstrap bash
+docker rmi 32b grafana_backup:latest
+docker tag 32b grafana_backup:latest
+docker pull
+
+- Hacer un docker pull en todos los nodos publicos desde hermes
+     ansible agent -m shell -a "docker pull registry.stratioprod.colmedica.com:5001/stratio/zookeeper-framework:2.5.2" -b --limit '!public*'
+
+#############################################################################
+## SCP
+#############################################################################
+- Subir un archivo a un entorno
+     scp -o "StrictHostKeyChecking no" /tmp/algo.tar  mutua_pro:/tmp/
+
+- Bajar un archivo de un entorno
+     scp uni_pro:/tmp/pushgateway.tar /home/javiergarcia/Desktop/
+
+- Bajar un archivo desde hermes
+     scp bootstrap:/stratio_volume/u-cert.tar.gz /tmp/local/
+
+#############################################################################
+## COMPRIMIR/DESCOMPRIMIR
+#############################################################################
+- COMPRIMIR
+     tar -zcvf archivo.tar.gz ruta/
+- DESCOMPRIMIR
+     tar -xzvf archivo.cd.gz
+     
+#############################################################################
+## OPENSSL
+#############################################################################
+- CREAR CERTIFICADO PK8
+     openssl pkcs8 -topk8 -inform PEM -outform DER -in gabril.key -out gabril.pk8 -nocrypt
+
+#############################################################################
+## VAULT CERTS desde Deploy-Api
+#############################################################################
+Lo primero es ver si los usuarios estan creados en /people/certificates, en el caso de que no esté, habrá que meterlo.
+Para ello, habrá que meter los usuarios dentro del tenant del entorno primero y despues de eso, crear los certificados desde el deploy-api.
+
+Para meterse dentro será desde el servicio "deploy-api" + /swagger-ui.html
+
+Ahí, en la sección "SECRETS-CONTROLLER" nos vamos a la 3ra opcion y le damos a "Try it out", tras darle completamos los campos con el usuario.
+     alt = davibern
+     cn = davibern
+     name = davibern
+     path = /people/certificates/davibern
+
+Solo esos campos valdrían. Tras eso, ya estaría creado el certificado de ese usuario.
+
+Luego para recoger los certificados de ese usuario por si se piden, habria que lanzar el siguiente comando.
+     cd /people/certificates  
+     getcert davibern
+
+Y ya se guardarian en el /tmp de la paas-bootstrap el cual habrá que mover a /stratio_volume si se quiere sacar de ahí.
+
+#############################################################################
+## Generar certificados en entornos antiguos
+#############################################################################
+Para crear certificados sin usar deploy-api, nos meteremos en la pass-bootstrap y haremos un "cd /stratio/paas-secret-utils/"
+Dentro de esta ruta, habra un script llamado "autogencerts".
+
+Para crear un certificado nuevo, deberemos de lanzar el comando asi previamente puesto el usuario en los archivos de "new_users"
+     ./autogencerts /stratio_volume/secrets/new_users/
+
+Luego te metes dentro de vault y con un "certinfo" al usuario y verificamos que se haya generado bien.
+
+-----
+Dentro del autogencerts hay 3 seciones:
+     - Crear los certificads --> certs.list
+     - Crear el keytab --> krb.list
+     - Crear los passwords --> pass.list
+(Según se necesite en cada momento, dejamos uno y otros descomentado)
+
+#############################################################################
+## JKS
+#############################################################################
+- CREAR CERTIFICADO JKS PARA CROSSDATA (PONER LA RUTA DE LAS COSAS SI ES NECESARIO)
+     bash jksgen.sh davibern.crt davibern.key ca.bundle
+
+(El ca.bundle se coge de /stratio_volume/pki/ca.bundle)
+
+#############################################################################
+## VAULT_TOKEN
+#############################################################################
+- Ver el token de vault
+     echo $(jq -r '.root_token' /stratio_volume/vault_response)
+
+#############################################################################
+## CURL
+#############################################################################
+- Ver las imagenes dentro de un registry
+     curl -XGET https://registry.balantia-stratio.com:5001/v2/_catalog | jq
+
+- Ver una imagen especifica
+     curl -XGET https://registry.sbscolombia.intr:5000/v2/stratio/datacentric-backup-restore/tags/list | jq
+
+````````
+Gestión de los nodos de un servicio (crear, quitar, reiniciar, ...), se puede coger el curl desde el /v1/service/status en el F12 (Archivo Status) y se lanza desde el terminal local
+
+Forma bonita:
+- Ver el estado
+     curl -XGET 'https://admin-prod.aerocivil-stratio.com/service/postgreseos/v1/service/status' --cert /opt/mesosphere/etc/pki/node.pem --key /opt/mesosphere/etc/pki/node.key -k | jq
+
+- Reiniciar un nodo
+     curl -XPOST 'https://admin-prod.aerocivil-stratio.com/service/postgreseos/v1/service/restart/pg-0001' --cert /opt/mesosphere/etc/pki/node.pem --key /opt/mesosphere/etc/pki/node.key -k | jq
+
+- Quitar un nodo caido
+     curl -XPOST 'https://admin-prod.aerocivil-stratio.com/service/postgreseos/v1/service/teardown/pg-0001' --cert /opt/mesosphere/etc/pki/node.pem --key /opt/mesosphere/etc/pki/node.key -k | jq
+
+- Añadir un nodo
+     curl -XPOST 'https://admin-prod.aerocivil-stratio.com/service/postgreseos/v1/service/addnode/pg-0001' --cert /opt/mesosphere/etc/pki/node.pem --key /opt/mesosphere/etc/pki/node.key -k | jq
+
+- Crear un nodo sincronizado
+     curl -XPOST 'https://admin-prod.aerocivil-stratio.com/service/postgreseos/v1/service/createasyncslave' --cert /opt/mesosphere/etc/pki/node.pem --key /opt/mesosphere/etc/pki/node.key -k | jq
+
+Forma fea:
+(El "dcos-arc-auth-cookie" se coge en la parte de F12, aplicationes y cookies dentro del DCOS)
+- Ver el estado
+     curl -k -s --cookie "dcos-acs-auth-cookie=eyJhbGciOiJIUzI1NiIsImtpZCI6InNlY3JldCIsInR5cCI6IkpXVCJ9.eyJjbiI6ImFkbWluIiwiZXhwIjoxNjQ3NTM0NDYzLCJncm91cHMiOlsic3RyYXRpbyIsIm1hbmFnZXJfaW5zdGFsbGVyIiwiYWRtaW4iLCJtYW5hZ2VyX2FkbWluIiwiZGV2LWdvc2VjLWFkbWlucyIsInByZS1kaXNjb3ZlcnktYWRtaW4iLCJwcmUtU3VwZXJBZG1pbi1nb3Zlcm5hbmNlIiwiQWVyb2NpdmlsLWRldi1kaXNjb3ZlcnktYWRtaW4iLCJkZXYtU3VwZXJBZG1pbi1nb3Zlcm5hbmNlIiwicm9ja2V0LXVzZXJzLWZyb250Il0sIm1haWwiOiJhZG1pbkBkZXYuYWVyb2NpdmlsLmludCIsInRlbmFudCI6Ik5PTkUiLCJ1aWQiOiJhZG1pbiJ9.uyguUqxSYEFj_al1Q4p4dQe567bgnvFy4mP5P6lNeL8" https://admin-dev.aerocivil-stratio.com/service/pre-pgmeta.pre/v1/service/status -XGET | jq
+
+
+#############################################################################
+## Eliminación del usuario de la politica via API
+#############################################################################
+Se mete dentro de la politica donde da el fallo, le damos F12 y nos vamos a los usuarios,
+despues intentamos meter un usuario y dentro de la terminal de F12 nos metemos donde esta el fallo. 
+Comprobamos que el usuario que queremos remover está en el error y despues le damos click derecho encima de la 
+pestaña y le damos a copiar como curl. Tras eso lo copiamos en un editor de texto y quitamos el usuario que 
+queremos. 
+Luego desde terminal, ejecutaremos el curl en local.
+
+#############################################################################
+## Borrado de backups con mas de 7 dias de antigüedad
+#############################################################################
+sudo find /backup/datacentric -mtime +7 -prune -exec rm -rf {} \;
+
+#############################################################################
+## Listar el Krb 
+#############################################################################
+klist -kt
+
+#############################################################################
+## Ver el pg-0001 de un postgres desde terminal 
+#############################################################################
+- Listamos los postgres en ejecución 
+     docker ps | grep postgres
+
+- Miramos las imagenes 1 por 1 hasta dar con el pg-0001
+     docker inspect fb4d963221 | grep -i task
+
+Y ahi miramos la task "TASK_DNS_NAME"
+
+- Despues nos metemos en el contenedor y nos metemos al postgres
+     docker exec -it 5345345 bash
+     psql -U postgres
+
+#############################################################################
+## Verificar conexion con opsgenie y crear el usuario de opsgenie en Vault
+#############################################################################
+- Meter la autorizacion de opsgenie en Vault
+     put /userland/passwords/opsgenie/auth {"pass": "895e5d4d-1b08-4ba5-ac6d-0126b04bdc74", "user": "support@stratio.com"}
+
+- Verificar La conexión
+     curl 'https://stratio.app.eu.opsgenie.com/webapi/alert/details?_=1643285606603&alertId=300ccb97-6ba9-4e8e-b969-f39d1792da57-1643270432381&flushSubMenu=true' \
+     -H 'authority: stratio.app.eu.opsgenie.com' \
+     -H 'sec-ch-ua: " Not A;Brand";v="99", "Chromium";v="96", "Google Chrome";v="96"' \
+     -H 'csrf-token: de5c00e7-321f-49bb-b1b6-39150fcc0233' \
+     -H 'x-requested-with: XMLHttpRequest' \
+     -H 'sec-ch-ua-mobile: ?0' \
+     -H 'user-agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/96.0.4664.45 Safari/537.36' \
+     -H 'build-version: 5321484b6ddc0d95518f67d02804b2e9135c1ce9' \
+     -H 'sec-ch-ua-platform: "Linux"' \
+     -H 'accept: */*' \
+     -H 'sec-fetch-site: same-origin' \
+     -H 'sec-fetch-mode: cors' \
+     -H 'sec-fetch-dest: empty' \
+     -H 'referer: https://stratio.app.eu.opsgenie.com/alert/detail/300ccb97-6ba9-4e8e-b969-f39d1792da57-1643270432381/details' \
+     -H 'accept-language: es-ES,es;q=0.9' \
+     -H 'cookie: seg_xid=07230de8-e82b-4c34-8e42-2c2b1110787f; _ga=GA1.2.1012637624.1636575727; atlCohort={"bucketAll":{"bucketedAtUTC":"2021-11-10T20:22:07.611Z","version":"2","index":45,"bucketId":0}}; ajs_anonymous_id=%22d0d00f4f-a96f-4d18-80d2-05596b0236b8%22; ajs_group_id=null; atlUserHash=1393648548; _gcl_au=1.1.285886662.1636575757; _fbp=fb.1.1636620149709.1020254062; _mkto_trk=id:594-ATC-127&token:_mch-opsgenie.com-1636620149758-70947; _uetvid=cb47057046eb11eca528c7b1ee8b01ff; atl_xid.current=%5B%7B%22type%22%3A%22xc%22%2C%22value%22%3A%22ca039212-edaa-4ca2-a539-4fa0ae71d061%22%2C%22createdAt%22%3A%222021-02-23T22%3A40%3A27.912Z%22%7D%5D; __stripe_mid=38cfe54a-5300-4cc0-8458-897df899ef5fea46f1; optimizelyEndUserId=lo_d78576d8bf8a; isOpsGenieUser=true; atl_xid.ts=1642579624739; _gid=GA1.2.1542290880.1643010733; OPSGENIE_ACTIVE_CUSTOMER=stratio; OPSGENIE_SSO_COOKIE=7e92e4d9-a133-4937-8087-2a0561819f7a#4747f466-e4cf-4bb7-950f-0b0f0b363f04; csrf-token=de5c00e7-321f-49bb-b1b6-39150fcc0233; JSESSIONID=0B87F32773F62B43AA161D5812B426B7; intercom-session-pd3wpn56=ckZKclFtaXV2WFlzb21jRW1UT3lvYXNiUytyTk5GaE1GaDhtYWUvRWxzd0ErOTFLblB3djBKZmNBM0VoeTVuay0tdGFadzNvV0pFbko2SU1Za2VRdW1SZz09--ef0638b1eed632357303e0ad4abc0c80cbe198ae; cloud.session.token=eyJraWQiOiJzZXNzaW9uLXNlcnZpY2VcL3Byb2QtMTU5Mjg1ODM5NCIsImFsZyI6IlJTMjU2In0.eyJhc3NvY2lhdGlvbnMiOltdLCJzdWIiOiI1YmI3MzYwZGM5ZGFkMDQ3MzRlYTk1NWIiLCJlbWFpbERvbWFpbiI6InN0cmF0aW8uY29tIiwiaW1wZXJzb25hdGlvbiI6W10sImNyZWF0ZWQiOjE2MzY1NzU3NDUsInJlZnJlc2hUaW1lb3V0IjoxNjQzMjg2MTQ4LCJ2ZXJpZmllZCI6dHJ1ZSwiaXNzIjoic2Vzc2lvbi1zZXJ2aWNlIiwic2Vzc2lvbklkIjoiMDY0YTVmMDktMTYwZi00MzgzLWEyYmYtODI4Mjc1Zjk2MTVhIiwiYXVkIjoiYXRsYXNzaWFuIiwibmJmIjoxNjQzMjg1NTQ4LCJleHAiOjE2NDU4Nzc1NDgsImlhdCI6MTY0MzI4NTU0OCwiZW1haWwiOiJkYWx2YXJlekBzdHJhdGlvLmNvbSIsImp0aSI6IjA2NGE1ZjA5LTE2MGYtNDM4My1hMmJmLTgyODI3NWY5NjE1YSJ9.hST-3gNng8nJ_rhQMTar1oeAy9QJj8FwrD62apKPHLRRpZgosn4EzWZOUbyIh3tqsYNzVUZ5EwYemcTvN0ENTGPMY0G-YdfvcklC5idMG6eeoCw1_BmvNUaFQ9ojfX0Y2YPPYHSIy-3baMJ2gp0XVPA92AVxe3Yn5JYZfsW0SmzbJ6YAl9IkQclgmLZEWWVp3LbvywabT5AMo7K9oEi0hCMXi3gFuW-zg4ltOHPbq0Dbd4VFGM9hRR64r0wR2kUFpMIXa5o6gm_gxqzMhMXc7vwihVjHSCW9L7jtRhN9rra0lxFcd8bhJIfrWY3VgBCXtDvf0cRsAEr9V-kd1BpYHg; atl_session=6919b43a-e325-4469-9ac2-56698df9531d; _gat_UA-31406268-1=1' \
+     --compressed
+
+#############################################################################
+## ANSIBLE
+#############################################################################
+- ServiceDown de servicio que no sirven o no se usan (Se lanza desde la bootstrap)
+     ansible all -m shell -a "systemctl reset-failed" -b
+
+
+
+
+------------------------  INFORMACIÓN A USAR --------------------------------
+
+#############################################################################
+## Usuario discovery para versiones antiguas (ta un poco feo btw)
+#############################################################################
+demo@stratio.com / 123456
+
+#############################################################################
+## Recuperar cert Vault a traves de Marathonlb
+#############################################################################
+https://docs.google.com/document/d/1etIBcuMZabuMW4PODCLtz3LAbD_cf4t80Y7p6e2zH0I/edit?usp=sharing
+
+#############################################################################
+## Acceso BBDD de postgres desde discovery
+#############################################################################
+(Si no tiene permisos dentro de gosec no se puede acceder a la BBDD, se pueden ver los permisos dentro de la máquina de postgres con \l 
+Ejemplo: discovery-data-universidad - Politica de UNI PRO)
+
+- Tipo de base:     PostgresSQL
+- Nombre:           data (Nombre a llamar en discovery)
+- Servidor:         universidad-pgbouncer.universidad.marathon.mesos (se suele utilizar el pgbouncer + marathon.mesos)
+- Puerto:           5432
+- Nombre BBDD:      data (Nombre de la BBDD a la que queremos acceder)
+- Nombre usuario:   Usar el mismo que el que tiene otro postgres en el discovery
+- JDBC:             Usar el mismo que el que tiene otro postgres en el discovery
+
+
+#############################################################################
+## Grafana añadir nodo si estaba en mantenimiento
+#############################################################################
+Ver si dentro del nodo a añadir tiene los archivos en "etc/consul.d/"
+En caso de que esté vacio, es posible que se haya movido a otra carpeta para tener una copia por si acaso,
+esta carpeta puede ser "/opt/maintenance/consul/"
+
+Si es así, se reiniciará el servicio de consul.
+     - systemctl restart consul.service
+     - systemctl status consul.service
+
+Cuando ya se haya reiniciado y este corriendo el servicio, habria que refrescar el grafana y prometheus para ver 
+si se ha añadido correctamente.
+
+#############################################################################
+## INFO BACKUPS EXTERNAL 
+#############################################################################
+ldap secrets --> nodo de ldap /opt/ldap/secrets/
+secrets kerberos --> nodo de kerberos /opt/kerberos/secrets
+Cálico --> Un master y haz /opt/stratio/calico/calicoctl help
+
+#############################################################################
+## LIBERACIÓN DE RECURSOS RESERVADOS 
+#############################################################################
+https://github.com/Stratio/eos-notes/blob/master/scripts/python/mesosReservations.md
+
+#############################################################################
+## CONTRASEÑAS CORREOS
+#############################################################################
+support
+Soporte2016
+
+operatons
+Operaciones2018
+
+monitoring
+stratio18
+
+#############################################################################
+## Añadir un jdb2 al repositorio del entorno
+############################################################################
+Primero nos descargamos el archivo jar en nuestra máquina local, tras eso lo moveremos a través de un scp a la bootstrap del entorno.
+Haremos un "cat /etc/systemd/system/universe-http.service" para ver la ruta del repositorio.
+
+Nos vamos a la ruta que aparecía (cd /var/lib/docker/repository/thirdparty-binaries)
+Y una vez dentro, moveremos el jar de tmp a esta ruta y ya se podra utilizar dentro de los servicios.
+
+
+curl -XPOST 'https://bootstrap.victor.hetzner.stratio.com/service/tenant1-zookeeper.tenant1/v1/service/config' -d '{"preAllocSize":"128","maxClientCnxns":"10","maxSessionTimeout":"30"}' -H "Content-Type: application/json" --cookie "dcos-acs-auth-cookie=${DCOS_ACS_AUTH_COOKIE}" --insecure | jq
+{"code":200,"component":"Framework","status":"ok"}
+
+
+-d '{"preAllocSize":"128","maxClientCnxns":"10","maxSessionTimeout":"30"}' -H "Content-Type: application/json"
+
+curl 'https://admin.balantia-stratio.com/service/balantia-dev-postgres.balantia-dev/v1/service/config' -XPOST \
+  -d '{"hot_standby_feedback":"on"}' -H "Content-Type: application/json" \
+  -H 'Connection: keep-alive' \
+  -H 'Cache-Control: max-age=0' \
+  -H 'sec-ch-ua: "Chromium";v="92", " Not A;Brand";v="99", "Google Chrome";v="92"' \
+  -H 'sec-ch-ua-mobile: ?0' \
+  -H 'Upgrade-Insecure-Requests: 1' \
+  -H 'User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.159 Safari/537.36' \
+  -H 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9' \
+  -H 'Sec-Fetch-Site: none' \
+  -H 'Sec-Fetch-Mode: navigate' \
+  -H 'Sec-Fetch-User: ?1' \
+  -H 'Sec-Fetch-Dest: document' \
+  -H 'Accept-Language: es-ES,es;q=0.9' \
+  -H 'Cookie: sso_redirection=https://admin.balantia-stratio.com/; dcos-acs-auth-cookie=eyJhbGciOiJIUzI1NiIsImtpZCI6InNlY3JldCIsInR5cCI6IkpXVCJ9.eyJjbiI6ImFkbWluIiwiZXhwIjoxNjUwMzkxMTYwLCJncm91cHMiOlsibWFuYWdlcl9pbnN0YWxsZXIiLCJzdHJhdGlvIiwiYmFsYW50aWEtU3VwZXJBZG1pbi1nb3Zlcm5hbmNlIiwiYWRtaW4iLCJiYWxhbnRpYS1kZXYtU3VwZXJBZG1pbi1nb3Zlcm5hbmNlIiwiYmFsYW50aWEtZ292ZXJuYW5jZS1zdXBlci1hZG1pbnMiLCJiYWxhbnRpYS1kZXYtZ29zZWMtYWRtaW5zIiwibWFuYWdlcl9hZG1pbiIsIkJhbGFudGlhLWRpc2NvdmVyeS1hZG1pbiIsImJhbGFudGlhLXJvY2tldC11c2Vycy1mcm9udCIsImJhbGFudGlhLWRldi1pbnRlbGxpZ2VuY2UiLCJCYWxhbnRpYS1kZXYtZGlzY292ZXJ5LWFkbWluIl0sIm1haWwiOiJhZG1pbkBwcm9kLmFkZmJhbC5pbnQiLCJ0ZW5hbnQiOiJOT05FIiwidWlkIjoiYWRtaW4ifQ.CctH9wfA9lcXihT1UXJZySXc1iMG7s216X6qyhOv4DQ; dcos-acs-info-cookie=eyJ1aWQiOiJhZG1pbiIsImRlc2NyaXB0aW9uIjoiYWRtaW4ifQ==' \
+  --compressed \
+  --insecure ;
+  --compressed
+
+
+  curl 'https://admin.balantia-stratio.com/service/balantia-postgres.balantia/v1/service/config' -XPOST \
+  -d '{"hot_standby_feedback":"on"}' -H "Content-Type: application/json" \
+  -H 'Connection: keep-alive' \
+  -H 'Cache-Control: max-age=0' \
+  -H 'sec-ch-ua: "Chromium";v="92", " Not A;Brand";v="99", "Google Chrome";v="92"' \
+  -H 'sec-ch-ua-mobile: ?0' \
+  -H 'Upgrade-Insecure-Requests: 1' \
+  -H 'User-Agent: Mozilla/5.0 (X11; Linux x86_64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/92.0.4515.159 Safari/537.36' \
+  -H 'Accept: text/html,application/xhtml+xml,application/xml;q=0.9,image/avif,image/webp,image/apng,*/*;q=0.8,application/signed-exchange;v=b3;q=0.9' \
+  -H 'Sec-Fetch-Site: none' \
+  -H 'Sec-Fetch-Mode: navigate' \
+  -H 'Sec-Fetch-User: ?1' \
+  -H 'Sec-Fetch-Dest: document' \
+  -H 'Accept-Language: es-ES,es;q=0.9' \
+  -H 'Cookie: sso_redirection=https://admin.balantia-stratio.com/; dcos-acs-auth-cookie=eyJhbGciOiJIUzI1NiIsImtpZCI6InNlY3JldCIsInR5cCI6IkpXVCJ9.eyJjbiI6ImFkbWluIiwiZXhwIjoxNjUwMzkxMTYwLCJncm91cHMiOlsibWFuYWdlcl9pbnN0YWxsZXIiLCJzdHJhdGlvIiwiYmFsYW50aWEtU3VwZXJBZG1pbi1nb3Zlcm5hbmNlIiwiYWRtaW4iLCJiYWxhbnRpYS1kZXYtU3VwZXJBZG1pbi1nb3Zlcm5hbmNlIiwiYmFsYW50aWEtZ292ZXJuYW5jZS1zdXBlci1hZG1pbnMiLCJiYWxhbnRpYS1kZXYtZ29zZWMtYWRtaW5zIiwibWFuYWdlcl9hZG1pbiIsIkJhbGFudGlhLWRpc2NvdmVyeS1hZG1pbiIsImJhbGFudGlhLXJvY2tldC11c2Vycy1mcm9udCIsImJhbGFudGlhLWRldi1pbnRlbGxpZ2VuY2UiLCJCYWxhbnRpYS1kZXYtZGlzY292ZXJ5LWFkbWluIl0sIm1haWwiOiJhZG1pbkBwcm9kLmFkZmJhbC5pbnQiLCJ0ZW5hbnQiOiJOT05FIiwidWlkIjoiYWRtaW4ifQ.CctH9wfA9lcXihT1UXJZySXc1iMG7s216X6qyhOv4DQ; dcos-acs-info-cookie=eyJ1aWQiOiJhZG1pbiIsImRlc2NyaXB0aW9uIjoiYWRtaW4ifQ==' \
+  --compressed \
+  --insecure
+
+  gabril
+  veiPheij7a
+  
